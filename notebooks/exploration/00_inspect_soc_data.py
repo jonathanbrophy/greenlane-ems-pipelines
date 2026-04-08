@@ -126,7 +126,7 @@ soc_logs = (
 co_measurands = (
     sampled_values
     .join(soc_logs, on=["ocpp_log_sid", "meter_value_idx"])
-    .withColumn("measurand_str", F.col("measurand").cast("string"))
+    .select(F.col("measurand").cast("string").alias("measurand_str"))
     .groupBy("measurand_str")
     .count()
     .orderBy(F.desc("count"))
