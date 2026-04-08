@@ -1,0 +1,52 @@
+{
+  "name": "ems-pipelines-silver",
+  "tasks": [
+    {
+      "task_key": "extract_session_timeseries",
+      "notebook_task": {
+        "notebook_path": "notebooks/silver/01_extract_session_timeseries",
+        "source": "GIT"
+      },
+      "job_cluster_key": "ems_cluster"
+    },
+    {
+      "task_key": "clean_and_resample",
+      "depends_on": [
+        {"task_key": "extract_session_timeseries"}
+      ],
+      "notebook_task": {
+        "notebook_path": "notebooks/silver/02_clean_and_resample",
+        "source": "GIT"
+      },
+      "job_cluster_key": "ems_cluster"
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "ems_cluster",
+      "new_cluster": {
+        "spark_version": "14.3.x-scala2.12",
+        "node_type_id": "Standard_DS3_v2",
+        "num_workers": 1,
+        "spark_conf": {},
+        "custom_tags": {
+          "project": "ems-pipelines"
+        }
+      }
+    }
+  ],
+  "git_source": {
+    "git_url": "https://github.com/jonathanbrophy/greenlane-ems-pipelines",
+    "git_provider": "gitHub",
+    "git_branch": "main"
+  },
+  "schedule": {
+    "quartz_cron_expression": "0 0 6 * * ?",
+    "timezone_id": "America/Los_Angeles",
+    "pause_status": "PAUSED"
+  },
+  "tags": {
+    "pipeline": "ems-charge-curves",
+    "layer": "silver"
+  }
+}

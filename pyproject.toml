@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "ems-pipelines"
+version = "0.1.0"
+description = "EV charging curve analysis pipeline — Power-vs-SoC modeling for MPC LP constraints"
+authors = ["Greenlane Infrastructure"]
+readme = "README.md"
+packages = [{include = "ems_pipelines", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+numpy = "^1.26"
+scipy = "^1.14"
+pwlf = "^2.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pyspark = "^3.5"
+delta-spark = "^3.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
