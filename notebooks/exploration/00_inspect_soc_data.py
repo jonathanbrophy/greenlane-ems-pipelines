@@ -140,7 +140,7 @@ co_measurands.display()
 
 # COMMAND ----------
 
-ev_sessions = spark.table("int_ev_session")
+ev_sessions = spark.table("ev_session")
 
 sessions_with_vin = ev_sessions.filter(F.col("vehicle_vin").isNotNull()).count()
 total_ev_sessions = ev_sessions.count()
