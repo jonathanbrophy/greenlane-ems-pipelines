@@ -111,7 +111,6 @@ result = timeseries.select(
     F.col("energy_wh"),
     # EVSE max power — will need connector spec lookup in future
     F.lit(None).cast("float").alias("evse_max_power_kw"),
-    F.lit("ocpp_reported").alias("soc_source"),
     F.col("meter_value_at_utc").alias("measurement_at_utc"),
 )
 

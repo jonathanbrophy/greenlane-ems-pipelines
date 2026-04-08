@@ -5,41 +5,8 @@ from ems_pipelines.soc_utils import (
     classify_evse_power_tier,
     filter_session,
     normalize_power,
-    reconstruct_soc,
     resample_to_soc_grid,
 )
-
-
-# --- reconstruct_soc ---
-
-
-class TestReconstructSoc:
-    def test_basic_integration(self):
-        energy = np.array([5.0, 5.0, 5.0, 5.0])
-        soc = reconstruct_soc(energy, battery_capacity_kwh=100.0, soc_start=0.0)
-        assert soc[-1] == pytest.approx(0.20)
-
-    def test_with_start_soc(self):
-        energy = np.array([10.0, 10.0])
-        soc = reconstruct_soc(energy, battery_capacity_kwh=100.0, soc_start=0.5)
-        assert soc[-1] == pytest.approx(0.70)
-
-    def test_monotonically_increasing(self):
-        energy = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        soc = reconstruct_soc(energy, battery_capacity_kwh=60.0, soc_start=0.1)
-        assert np.all(np.diff(soc) > 0)
-
-    def test_zero_energy(self):
-        energy = np.array([0.0, 0.0, 0.0])
-        soc = reconstruct_soc(energy, battery_capacity_kwh=100.0, soc_start=0.5)
-        np.testing.assert_array_almost_equal(soc, [0.5, 0.5, 0.5])
-
-    def test_zero_capacity_returns_inf(self):
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            result = reconstruct_soc(np.array([5.0]), battery_capacity_kwh=0.0)
-        assert np.isinf(result[0])
 
 
 # --- resample_to_soc_grid ---

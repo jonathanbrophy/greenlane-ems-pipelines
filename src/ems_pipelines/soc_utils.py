@@ -1,32 +1,12 @@
-"""SoC reconstruction, resampling, and session filtering utilities.
+"""SoC resampling and session filtering utilities.
 
 All functions operate on plain numpy arrays — no Spark dependency.
+Only sessions with OCPP-reported SoC data are used (no SoC reconstruction).
 """
 
 from __future__ import annotations
 
 import numpy as np
-
-
-def reconstruct_soc(
-    energy_kwh: np.ndarray,
-    battery_capacity_kwh: float,
-    soc_start: float = 0.0,
-) -> np.ndarray:
-    """Integrate energy delivered to reconstruct SoC trajectory.
-
-    Use as a fallback when OCPP SoC measurand is unavailable.
-
-    Args:
-        energy_kwh: Incremental energy delivered at each time step (kWh).
-        battery_capacity_kwh: Usable battery capacity of the vehicle.
-        soc_start: Initial state of charge [0, 1].
-
-    Returns:
-        SoC at each time step [0, 1].
-    """
-    cumulative_energy = np.cumsum(energy_kwh)
-    return soc_start + (cumulative_energy / battery_capacity_kwh)
 
 
 def resample_to_soc_grid(

@@ -41,7 +41,6 @@ class SessionTimeseries:
     POWER_KW = "power_kw"
     ENERGY_WH = "energy_wh"
     EVSE_MAX_POWER_KW = "evse_max_power_kw"
-    SOC_SOURCE = "soc_source"
     MEASUREMENT_AT_UTC = "measurement_at_utc"
 
 
@@ -51,8 +50,6 @@ class SessionSocCurves:
     SESSION_ID = "session_id"
     MAKE = "make"
     MODEL = "model"
-    BATTERY_CAPACITY_KWH = "battery_capacity_kwh"
-    SOC_SOURCE = "soc_source"
     SOC_START = "soc_start"
     SOC_END = "soc_end"
     SOC_GRID = "soc_grid"
