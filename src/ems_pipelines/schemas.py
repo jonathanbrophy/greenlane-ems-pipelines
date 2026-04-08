@@ -3,7 +3,10 @@
 Column name constants to keep notebooks and utils in sync.
 """
 
-# --- Source tables (from greenlane-data-eng dbt models) ---
+# --- Source catalog/schema (from greenlane-data-eng dbt models) ---
+
+SOURCE_CATALOG = "prod"
+SOURCE_SCHEMA = "public"
 
 SOURCE_SAMPLED_VALUE_TABLE = "int_ems__ocpp_log_sampled_value"
 SOURCE_EV_SESSION_TABLE = "int_ev_session"

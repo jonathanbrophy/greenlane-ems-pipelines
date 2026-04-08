@@ -16,6 +16,17 @@ from pyspark.sql import Window
 
 # COMMAND ----------
 
+# MAGIC %md ## Configuration
+
+# COMMAND ----------
+
+SOURCE_CATALOG = "prod"
+SOURCE_SCHEMA = "public"
+spark.sql(f"USE CATALOG {SOURCE_CATALOG}")
+spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
+
+# COMMAND ----------
+
 # MAGIC %md ## 1. Load Source Tables
 
 # COMMAND ----------

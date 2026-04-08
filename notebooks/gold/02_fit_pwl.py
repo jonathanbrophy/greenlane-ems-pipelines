@@ -32,6 +32,11 @@ from pyspark.sql.types import (
 
 # COMMAND ----------
 
+SOURCE_CATALOG = "prod"
+SOURCE_SCHEMA = "public"
+spark.sql(f"USE CATALOG {SOURCE_CATALOG}")
+spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
+
 # Number of PWL segments — tunable by controls team
 # Fewer = simpler LP constraints, more = better fidelity
 N_SEGMENTS = 5

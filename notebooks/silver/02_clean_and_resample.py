@@ -13,6 +13,17 @@
 import numpy as np
 import pandas as pd
 from pyspark.sql import functions as F
+
+# COMMAND ----------
+
+# MAGIC %md ## Configuration
+
+# COMMAND ----------
+
+SOURCE_CATALOG = "prod"
+SOURCE_SCHEMA = "public"
+spark.sql(f"USE CATALOG {SOURCE_CATALOG}")
+spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
 from pyspark.sql.types import (
     ArrayType,
     FloatType,

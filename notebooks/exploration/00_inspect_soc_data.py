@@ -17,6 +17,19 @@ from pyspark.sql import functions as F
 
 # COMMAND ----------
 
+# MAGIC %md ## Configuration
+# MAGIC
+# MAGIC Set the catalog and schema where dbt models are materialized.
+
+# COMMAND ----------
+
+CATALOG = "prod"
+SCHEMA = "public"
+spark.sql(f"USE CATALOG {CATALOG}")
+spark.sql(f"USE SCHEMA {SCHEMA}")
+
+# COMMAND ----------
+
 # MAGIC %md ## 1. SoC Measurand Availability
 
 # COMMAND ----------
