@@ -45,10 +45,23 @@ ev_sessions = spark.table("int_ev_session")
 # COMMAND ----------
 
 # Filter to periodic sample readings (exclude Transaction.Begin/End)
-# Cast VARIANT columns to native types for groupBy/pivot compatibility
-periodic = sampled_values.filter(
-    (F.col("call_action") == "MeterValues")
-    & (F.col("context").cast("string").isin("Sample.Periodic") | F.col("context").isNull())
+# Pre-select and cast VARIANT columns to native types before pivot
+periodic = (
+    sampled_values
+    .filter(
+        (F.col("call_action") == "MeterValues")
+        & (F.col("context").cast("string").isin("Sample.Periodic") | F.col("context").isNull())
+    )
+    .select(
+        F.col("driivz__ev_transaction_id"),
+        F.col("driivz__charger_id"),
+        F.col("driivz__charger_connector_idx"),
+        F.col("ocpp_log_sid"),
+        F.col("meter_value_idx"),
+        F.col("meter_value_at_utc"),
+        F.col("measurand").cast("string").alias("measurand"),
+        F.col("value").cast("float").alias("value"),
+    )
 )
 
 # Pivot: one row per (ocpp_log_sid, meter_value_idx) with SoC, Power, Energy as columns
@@ -63,10 +76,10 @@ wide = (
         "meter_value_at_utc",
     )
     .pivot(
-        F.col("measurand").cast("string"),
+        "measurand",
         ["SoC", "Power.Active.Import", "Energy.Active.Import.Register"],
     )
-    .agg(F.first(F.col("value").cast("float")))
+    .agg(F.first("value"))
     .withColumnRenamed("SoC", "soc_raw")
     .withColumnRenamed("Power.Active.Import", "power_w")
     .withColumnRenamed("Energy.Active.Import.Register", "energy_wh")

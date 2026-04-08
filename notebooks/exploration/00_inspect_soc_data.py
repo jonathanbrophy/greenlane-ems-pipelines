@@ -203,13 +203,25 @@ sample_data.display()
 # COMMAND ----------
 
 # Pivot to wide format for plotting: one row per timestamp with SoC, Power, Energy columns
-sample_wide = (
+# Pre-select and cast to avoid VARIANT type issues with pivot/groupBy
+sample_narrow = (
     sampled_values
     .filter(F.col("driivz__ev_transaction_id") == sample_session_id)
     .filter(F.col("context").cast("string").isin("Sample.Periodic") | F.col("context").isNull())
+    .select(
+        F.col("ocpp_log_sid"),
+        F.col("meter_value_idx"),
+        F.col("meter_value_at_utc"),
+        F.col("measurand").cast("string").alias("measurand"),
+        F.col("value").cast("float").alias("value"),
+    )
+)
+
+sample_wide = (
+    sample_narrow
     .groupBy("ocpp_log_sid", "meter_value_idx", "meter_value_at_utc")
-    .pivot(F.col("measurand").cast("string"), ["SoC", "Power.Active.Import", "Energy.Active.Import.Register"])
-    .agg(F.first(F.col("value").cast("float")))
+    .pivot("measurand", ["SoC", "Power.Active.Import", "Energy.Active.Import.Register"])
+    .agg(F.first("value"))
     .orderBy("meter_value_at_utc")
     .withColumnRenamed("SoC", "soc")
     .withColumnRenamed("Power.Active.Import", "power_w")
