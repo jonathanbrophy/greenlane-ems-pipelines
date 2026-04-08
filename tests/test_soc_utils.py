@@ -35,7 +35,10 @@ class TestReconstructSoc:
         np.testing.assert_array_almost_equal(soc, [0.5, 0.5, 0.5])
 
     def test_zero_capacity_returns_inf(self):
-        result = reconstruct_soc(np.array([5.0]), battery_capacity_kwh=0.0)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            result = reconstruct_soc(np.array([5.0]), battery_capacity_kwh=0.0)
         assert np.isinf(result[0])
 
 
