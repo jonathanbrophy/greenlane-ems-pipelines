@@ -45,9 +45,10 @@ ev_sessions = spark.table("int_ev_session")
 # COMMAND ----------
 
 # Filter to periodic sample readings (exclude Transaction.Begin/End)
+# Cast VARIANT columns to native types for groupBy/pivot compatibility
 periodic = sampled_values.filter(
     (F.col("call_action") == "MeterValues")
-    & (F.col("context").isin("Sample.Periodic") | F.col("context").isNull())
+    & (F.col("context").cast("string").isin("Sample.Periodic") | F.col("context").isNull())
 )
 
 # Pivot: one row per (ocpp_log_sid, meter_value_idx) with SoC, Power, Energy as columns
@@ -62,10 +63,10 @@ wide = (
         "meter_value_at_utc",
     )
     .pivot(
-        "measurand",
+        F.col("measurand").cast("string"),
         ["SoC", "Power.Active.Import", "Energy.Active.Import.Register"],
     )
-    .agg(F.first("value"))
+    .agg(F.first(F.col("value").cast("float")))
     .withColumnRenamed("SoC", "soc_raw")
     .withColumnRenamed("Power.Active.Import", "power_w")
     .withColumnRenamed("Energy.Active.Import.Register", "energy_wh")

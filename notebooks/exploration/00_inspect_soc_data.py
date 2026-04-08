@@ -58,14 +58,16 @@ print(f"SoC coverage:                     {soc_sessions / total_sessions * 100:.
 
 soc_values = sampled_values.filter(F.col("measurand") == "SoC")
 
+soc_val = F.col("value").cast("float")
+
 soc_stats = soc_values.agg(
-    F.min("value").alias("min_soc"),
-    F.max("value").alias("max_soc"),
-    F.avg("value").alias("avg_soc"),
-    F.stddev("value").alias("stddev_soc"),
-    F.count(F.when(F.col("value").isNull(), 1)).alias("null_count"),
-    F.count(F.when(F.col("value") < 0, 1)).alias("negative_count"),
-    F.count(F.when(F.col("value") > 100, 1)).alias("over_100_count"),
+    F.min(soc_val).alias("min_soc"),
+    F.max(soc_val).alias("max_soc"),
+    F.avg(soc_val).alias("avg_soc"),
+    F.stddev(soc_val).alias("stddev_soc"),
+    F.count(F.when(soc_val.isNull(), 1)).alias("null_count"),
+    F.count(F.when(soc_val < 0, 1)).alias("negative_count"),
+    F.count(F.when(soc_val > 100, 1)).alias("over_100_count"),
     F.count("*").alias("total_readings"),
 )
 
@@ -73,14 +75,14 @@ soc_stats.display()
 
 # COMMAND ----------
 
-# Check the unit field for SoC readings
-soc_values.groupBy("unit").count().orderBy(F.desc("count")).display()
+# Check the unit field for SoC readings (cast from VARIANT to STRING)
+soc_values.groupBy(F.col("unit").cast("string")).count().orderBy(F.desc("count")).display()
 
 # COMMAND ----------
 
 # Distribution of SoC values (histogram buckets)
 soc_values.select(
-    F.floor(F.col("value") / 10).alias("soc_decile")
+    F.floor(F.col("value").cast("float") / 10).alias("soc_decile")
 ).groupBy("soc_decile").count().orderBy("soc_decile").display()
 
 # COMMAND ----------
@@ -124,7 +126,7 @@ soc_logs = (
 co_measurands = (
     sampled_values
     .join(soc_logs, on=["ocpp_log_sid", "meter_value_idx"])
-    .groupBy("measurand")
+    .groupBy(F.col("measurand").cast("string").alias("measurand"))
     .count()
     .orderBy(F.desc("count"))
 )
@@ -203,10 +205,10 @@ sample_data.display()
 sample_wide = (
     sampled_values
     .filter(F.col("driivz__ev_transaction_id") == sample_session_id)
-    .filter(F.col("context").isin("Sample.Periodic", None))
+    .filter(F.col("context").cast("string").isin("Sample.Periodic") | F.col("context").isNull())
     .groupBy("ocpp_log_sid", "meter_value_idx", "meter_value_at_utc")
-    .pivot("measurand", ["SoC", "Power.Active.Import", "Energy.Active.Import.Register"])
-    .agg(F.first("value"))
+    .pivot(F.col("measurand").cast("string"), ["SoC", "Power.Active.Import", "Energy.Active.Import.Register"])
+    .agg(F.first(F.col("value").cast("float")))
     .orderBy("meter_value_at_utc")
     .withColumnRenamed("SoC", "soc")
     .withColumnRenamed("Power.Active.Import", "power_w")
