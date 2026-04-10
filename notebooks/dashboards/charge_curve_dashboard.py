@@ -3,8 +3,8 @@
 # MAGIC # Vehicle Charge Curve Dashboard
 # MAGIC
 # MAGIC Interactive visualization of Power-vs-SoC charge curves by vehicle
-# MAGIC make/model. Select a vehicle from the dropdown — the charts update
-# MAGIC instantly without re-running the notebook.
+# MAGIC make/model. Use the dropdown in the chart to switch between vehicles
+# MAGIC instantly.
 
 # COMMAND ----------
 
@@ -17,7 +17,6 @@ from pyspark.sql import functions as F
 TARGET_CATALOG = "jonathan_play"
 TARGET_SCHEMA = "vehicle_charge_curves"
 
-# Load everything into memory once
 curves_df = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curves_by_vehicle")
 all_curves = curves_df.collect()
 
@@ -27,7 +26,6 @@ if not all_curves:
         "Run the pipeline first: silver/02 -> gold/01 -> (optional) gold/02"
     )
 
-# Try loading PWL fits
 try:
     pwl_df = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curve_pwl")
     all_pwl = pwl_df.collect()
@@ -45,34 +43,44 @@ for r in all_pwl:
     key = (r["make"], r["model"], r["evse_power_tier"])
     pwl_lookup[key] = r
 
-# Build sorted labels
 vehicle_keys = sorted(curve_lookup.keys(), key=lambda k: (k[0] or "", k[1] or "", k[2] or ""))
-vehicle_labels = {
-    f"{k[0]} {k[1]} ({k[2]})": k for k in vehicle_keys
-}
 
 print(f"Loaded {len(all_curves)} vehicle/tier groups, {len(all_pwl)} PWL fits")
 
 # COMMAND ----------
 
-# MAGIC %md ## 2. Interactive Dashboard
+# MAGIC %md ## 2. Charge Curve Dashboard
 # MAGIC
-# MAGIC Select a vehicle from the dropdown to update the charts instantly.
+# MAGIC Use the dropdown at the top-left of the chart to switch vehicles.
+# MAGIC Hover for values, drag to zoom, double-click to reset.
 
 # COMMAND ----------
 
-import ipywidgets as widgets
 import numpy as np
 import plotly.graph_objects as go
-from IPython.display import display
 from plotly.subplots import make_subplots
 
+# Each vehicle gets a set of traces. We'll show/hide them via the dropdown.
+# Traces per vehicle: envelope_upper, envelope_lower, p10, p50, p90, [pwl], coverage_bar
+# We use a consistent number of traces per vehicle (7) so indexing is simple.
+# If no PWL, the PWL trace is empty.
 
-def build_figure(key):
-    """Build the Plotly figure for a given (make, model, tier) key."""
+TRACES_PER_VEHICLE = 7  # envelope_upper, envelope_lower, p10, p50, p90, pwl, coverage
+
+fig = make_subplots(
+    rows=2, cols=1,
+    shared_xaxes=True,
+    vertical_spacing=0.08,
+    row_heights=[0.75, 0.25],
+)
+
+all_visibility = []  # list of visibility arrays, one per vehicle
+
+for idx, key in enumerate(vehicle_keys):
     curve_row = curve_lookup[key]
     pwl_row = pwl_lookup.get(key)
     make, model, tier = key
+    visible = idx == 0  # only first vehicle visible initially
 
     p10 = curve_row["p10_curve"]
     p50 = curve_row["p50_curve"]
@@ -88,28 +96,17 @@ def build_figure(key):
     soc_cov = [pt["soc"] * 100 for pt in coverage]
     n_readings = [pt["n_readings"] for pt in coverage]
 
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.08,
-        row_heights=[0.75, 0.25],
-        subplot_titles=[
-            f"Charge Curve: {make} {model} -- {tier}  |  "
-            f"{curve_row['n_sessions']} sessions  |  "
-            f"Max {curve_row['max_observed_power_kw']:.0f} kW",
-            "Data Coverage (raw OCPP readings per 1% SoC bin)",
-        ],
-    )
-
-    # P10-P90 envelope
+    # Envelope upper bound
     fig.add_trace(
         go.Scatter(
             x=soc_p90, y=pow_p90,
             mode="lines", line=dict(width=0),
             showlegend=False, hoverinfo="skip",
+            visible=visible,
         ),
         row=1, col=1,
     )
+    # Envelope lower bound (filled to upper)
     fig.add_trace(
         go.Scatter(
             x=soc_p10, y=pow_p10,
@@ -118,10 +115,11 @@ def build_figure(key):
             fillcolor="rgba(70, 130, 180, 0.2)",
             name="P10-P90 envelope",
             hoverinfo="skip",
+            visible=visible,
+            legendgroup="envelope",
         ),
         row=1, col=1,
     )
-
     # P10 line
     fig.add_trace(
         go.Scatter(
@@ -130,10 +128,10 @@ def build_figure(key):
             line=dict(color="steelblue", width=1, dash="dot"),
             name="P10",
             hovertemplate="SoC: %{x:.0f}%<br>P10: %{y:.1f} kW<extra></extra>",
+            visible=visible,
         ),
         row=1, col=1,
     )
-
     # P50 median
     fig.add_trace(
         go.Scatter(
@@ -142,10 +140,10 @@ def build_figure(key):
             line=dict(color="steelblue", width=3),
             name="P50 (median)",
             hovertemplate="SoC: %{x:.0f}%<br>P50: %{y:.1f} kW<extra></extra>",
+            visible=visible,
         ),
         row=1, col=1,
     )
-
     # P90 line
     fig.add_trace(
         go.Scatter(
@@ -154,27 +152,32 @@ def build_figure(key):
             line=dict(color="steelblue", width=1, dash="dot"),
             name="P90",
             hovertemplate="SoC: %{x:.0f}%<br>P90: %{y:.1f} kW<extra></extra>",
+            visible=visible,
         ),
         row=1, col=1,
     )
-
-    # PWL overlay
+    # PWL overlay (empty if not available)
     if pwl_row:
         bps = pwl_row["pwl_breakpoints"]
         soc_bp = [pt["soc"] * 100 for pt in bps]
         pow_bp = [pt["power_kw"] for pt in bps]
-        fig.add_trace(
-            go.Scatter(
-                x=soc_bp, y=pow_bp,
-                mode="lines+markers",
-                line=dict(color="red", width=2, dash="dash"),
-                marker=dict(size=8, color="red"),
-                name=f"PWL ({pwl_row['n_segments']} seg, RMSE={pwl_row['fit_rmse']:.1f} kW)",
-                hovertemplate="SoC: %{x:.1f}%<br>PWL: %{y:.1f} kW<extra></extra>",
-            ),
-            row=1, col=1,
-        )
+        pwl_name = f"PWL ({pwl_row['n_segments']} seg, RMSE={pwl_row['fit_rmse']:.1f} kW)"
+    else:
+        soc_bp, pow_bp = [], []
+        pwl_name = "PWL (not fitted)"
 
+    fig.add_trace(
+        go.Scatter(
+            x=soc_bp, y=pow_bp,
+            mode="lines+markers",
+            line=dict(color="red", width=2, dash="dash"),
+            marker=dict(size=8, color="red"),
+            name=pwl_name,
+            hovertemplate="SoC: %{x:.1f}%<br>PWL: %{y:.1f} kW<extra></extra>",
+            visible=visible if soc_bp else False,
+        ),
+        row=1, col=1,
+    )
     # Coverage bar chart
     fig.add_trace(
         go.Bar(
@@ -183,62 +186,113 @@ def build_figure(key):
             opacity=0.7,
             name="Raw readings",
             hovertemplate="SoC: %{x:.0f}%<br>Readings: %{y:,}<extra></extra>",
+            visible=visible,
         ),
         row=2, col=1,
     )
 
-    fig.update_layout(
-        height=700,
-        template="plotly_white",
-        legend=dict(
-            orientation="h",
-            yanchor="bottom", y=1.02,
-            xanchor="right", x=1,
-        ),
-        margin=dict(t=80),
+# Build dropdown buttons
+n_vehicles = len(vehicle_keys)
+total_traces = n_vehicles * TRACES_PER_VEHICLE
+buttons = []
+
+for idx, key in enumerate(vehicle_keys):
+    make, model, tier = key
+    curve_row = curve_lookup[key]
+    pwl_row = pwl_lookup.get(key)
+
+    # Visibility: only this vehicle's traces are visible
+    vis = [False] * total_traces
+    start = idx * TRACES_PER_VEHICLE
+    for j in range(TRACES_PER_VEHICLE):
+        # PWL trace (index 5) only visible if it has data
+        if j == 5 and not pwl_lookup.get(key):
+            vis[start + j] = False
+        else:
+            vis[start + j] = True
+
+    title = (
+        f"Charge Curve: {make} {model} -- {tier}  |  "
+        f"{curve_row['n_sessions']} sessions  |  "
+        f"Max {curve_row['max_observed_power_kw']:.0f} kW"
     )
-    fig.update_xaxes(title_text="State of Charge (%)", row=2, col=1, range=[0, 100], dtick=10)
-    fig.update_xaxes(range=[0, 100], dtick=10, row=1, col=1)
-    fig.update_yaxes(title_text="Power (kW)", row=1, col=1, rangemode="tozero")
-    fig.update_yaxes(title_text="Readings", row=2, col=1, rangemode="tozero")
 
-    return fig
+    buttons.append(dict(
+        label=f"{make} {model} ({tier})",
+        method="update",
+        args=[
+            {"visible": vis},
+            {"annotations": [
+                dict(
+                    text=title,
+                    xref="paper", yref="paper",
+                    x=0.5, y=1.0, xanchor="center",
+                    showarrow=False, font=dict(size=14),
+                ),
+                dict(
+                    text="Data Coverage (raw OCPP readings per 1% SoC bin)",
+                    xref="paper", yref="paper",
+                    x=0.5, y=0.22, xanchor="center",
+                    showarrow=False, font=dict(size=14),
+                ),
+            ]},
+        ],
+    ))
 
-
-# --- Build interactive widget ---
-
-dropdown = widgets.Dropdown(
-    options=list(vehicle_labels.keys()),
-    value=list(vehicle_labels.keys())[0],
-    description="Vehicle:",
-    style={"description_width": "60px"},
-    layout=widgets.Layout(width="400px"),
+# Set initial title
+first_key = vehicle_keys[0]
+first_row = curve_lookup[first_key]
+initial_title = (
+    f"Charge Curve: {first_key[0]} {first_key[1]} -- {first_key[2]}  |  "
+    f"{first_row['n_sessions']} sessions  |  "
+    f"Max {first_row['max_observed_power_kw']:.0f} kW"
 )
 
-fig_widget = go.FigureWidget(build_figure(vehicle_labels[dropdown.value]))
+fig.update_layout(
+    height=750,
+    template="plotly_white",
+    showlegend=True,
+    legend=dict(
+        orientation="h",
+        yanchor="bottom", y=1.06,
+        xanchor="right", x=1,
+    ),
+    margin=dict(t=120, l=60, r=20, b=40),
+    annotations=[
+        dict(
+            text=initial_title,
+            xref="paper", yref="paper",
+            x=0.5, y=1.0, xanchor="center",
+            showarrow=False, font=dict(size=14),
+        ),
+        dict(
+            text="Data Coverage (raw OCPP readings per 1% SoC bin)",
+            xref="paper", yref="paper",
+            x=0.5, y=0.22, xanchor="center",
+            showarrow=False, font=dict(size=14),
+        ),
+    ],
+    updatemenus=[dict(
+        type="dropdown",
+        direction="down",
+        showactive=True,
+        x=0.0,
+        xanchor="left",
+        y=1.18,
+        yanchor="top",
+        buttons=buttons,
+        bgcolor="white",
+        bordercolor="#ccc",
+        font=dict(size=12),
+    )],
+)
 
+fig.update_xaxes(title_text="State of Charge (%)", row=2, col=1, range=[0, 100], dtick=10)
+fig.update_xaxes(range=[0, 100], dtick=10, row=1, col=1)
+fig.update_yaxes(title_text="Power (kW)", row=1, col=1, rangemode="tozero")
+fig.update_yaxes(title_text="Readings", row=2, col=1, rangemode="tozero")
 
-def on_vehicle_change(change):
-    key = vehicle_labels[change["new"]]
-    new_fig = build_figure(key)
-
-    with fig_widget.batch_update():
-        # Update traces
-        for i, trace in enumerate(new_fig.data):
-            if i < len(fig_widget.data):
-                fig_widget.data[i].x = trace.x
-                fig_widget.data[i].y = trace.y
-                if hasattr(trace, "name"):
-                    fig_widget.data[i].name = trace.name
-
-        # Update titles
-        fig_widget.layout.annotations[0].text = new_fig.layout.annotations[0].text
-        fig_widget.layout.annotations[1].text = new_fig.layout.annotations[1].text
-
-
-dropdown.observe(on_vehicle_change, names="value")
-
-display(widgets.VBox([dropdown, fig_widget]))
+fig.show()
 
 # COMMAND ----------
 
