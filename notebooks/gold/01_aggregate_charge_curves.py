@@ -94,6 +94,12 @@ output_schema = StructType([
             StructField("power_kw", FloatType()),
         ])
     ), False),
+    StructField("coverage_count", ArrayType(
+        StructType([
+            StructField("soc", FloatType()),
+            StructField("n_sessions", IntegerType()),
+        ])
+    ), False),
     StructField("max_observed_power_kw", FloatType(), False),
     StructField("last_updated", TimestampType(), False),
 ])
@@ -120,6 +126,9 @@ def aggregate_curves(pdf: pd.DataFrame) -> pd.DataFrame:
         mask = (soc_grid >= soc_raw.min()) & (soc_grid <= soc_raw.max())
         power_matrix[i, mask] = np.interp(soc_grid[mask], soc_raw, power_raw)
 
+    # Count non-NaN sessions at each SoC grid point
+    coverage = np.sum(~np.isnan(power_matrix), axis=0)
+
     # Compute quantiles, ignoring NaN (sessions that don't cover the full range)
     p10 = np.nanpercentile(power_matrix, 10, axis=0)
     p50 = np.nanpercentile(power_matrix, 50, axis=0)
@@ -132,6 +141,12 @@ def aggregate_curves(pdf: pd.DataFrame) -> pd.DataFrame:
             if not np.isnan(p)
         ]
 
+    def to_coverage(soc_arr, count_arr):
+        return [
+            {"soc": float(s), "n_sessions": int(c)}
+            for s, c in zip(soc_arr, count_arr)
+        ]
+
     row = pdf.iloc[0]
     return pd.DataFrame([{
         "make": row.get("make"),
@@ -141,6 +156,7 @@ def aggregate_curves(pdf: pd.DataFrame) -> pd.DataFrame:
         "p10_curve": to_curve(soc_grid, p10),
         "p50_curve": to_curve(soc_grid, p50),
         "p90_curve": to_curve(soc_grid, p90),
+        "coverage_count": to_coverage(soc_grid, coverage),
         "max_observed_power_kw": float(np.nanmax(power_matrix)),
         "last_updated": datetime.now(timezone.utc),
     }])
