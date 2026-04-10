@@ -9,7 +9,7 @@ SOURCE_CATALOG = "prod"
 SOURCE_SCHEMA = "public"
 
 SOURCE_SAMPLED_VALUE_TABLE = "int_ems__ocpp_log_sampled_value"
-SOURCE_EV_SESSION_TABLE = "int_ev_session"
+SOURCE_EV_SESSION_TABLE = "ev_session"
 SOURCE_VEHICLE_TABLE = "int_customer__vehicle"
 
 # --- Target catalog/schema ---

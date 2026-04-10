@@ -32,7 +32,7 @@ TARGET_SCHEMA = "vehicle_charge_curves"
 # COMMAND ----------
 
 sampled_values = spark.table(f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.int_ems__ocpp_log_sampled_value")
-ev_sessions = spark.table(f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.int_ev_session")
+ev_sessions = spark.table(f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.ev_session")
 
 # COMMAND ----------
 
