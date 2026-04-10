@@ -13,7 +13,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -e /Workspace/Repos/jonathan.brophy@greenlane.com/greenlane-ems-pipelines
+# MAGIC %pip install -e /Workspace/Users/jonathan.brophy@drivegreenlane.com/greenlane-ems-pipelines
 
 # COMMAND ----------
 
