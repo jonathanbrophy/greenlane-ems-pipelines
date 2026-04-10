@@ -278,3 +278,34 @@ if not pdf.empty:
     plt.show()
 else:
     print("No rows with both SoC and Power — check data availability above.")
+
+# COMMAND ----------
+
+# MAGIC %md ## 6. Summary — Export All Key Metrics
+
+# COMMAND ----------
+
+import pandas as pd
+
+summary = pd.DataFrame([
+    {"metric": "total_sessions_with_meter_values", "value": total_sessions},
+    {"metric": "sessions_with_soc", "value": soc_sessions},
+    {"metric": "soc_coverage_pct", "value": round(soc_sessions / max(total_sessions, 1) * 100, 1)},
+    {"metric": "sessions_with_soc_and_power", "value": power_in_soc_sessions},
+    {"metric": "soc_power_co_occurrence_pct", "value": round(power_in_soc_sessions / max(soc_sessions, 1) * 100, 1)},
+    {"metric": "total_ev_sessions", "value": total_ev_sessions},
+    {"metric": "sessions_with_vin", "value": sessions_with_vin},
+    {"metric": "vin_coverage_pct", "value": round(sessions_with_vin / max(total_ev_sessions, 1) * 100, 1)},
+    {"metric": "sessions_with_soc_and_vin", "value": soc_and_vin},
+    {"metric": "soc_min", "value": soc_stats.collect()[0]["min_soc"]},
+    {"metric": "soc_max", "value": soc_stats.collect()[0]["max_soc"]},
+    {"metric": "soc_avg", "value": round(soc_stats.collect()[0]["avg_soc"], 2)},
+    {"metric": "soc_total_readings", "value": soc_stats.collect()[0]["total_readings"]},
+    {"metric": "soc_null_count", "value": soc_stats.collect()[0]["null_count"]},
+    {"metric": "soc_negative_count", "value": soc_stats.collect()[0]["negative_count"]},
+    {"metric": "soc_over_100_count", "value": soc_stats.collect()[0]["over_100_count"]},
+    {"metric": "sample_session_id", "value": sample_session_id},
+    {"metric": "sample_session_data_points", "value": len(pdf)},
+])
+
+spark.createDataFrame(summary).display()
