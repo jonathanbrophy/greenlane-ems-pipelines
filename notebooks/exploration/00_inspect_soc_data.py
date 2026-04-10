@@ -34,7 +34,10 @@ spark.sql(f"USE SCHEMA {SCHEMA}")
 
 # COMMAND ----------
 
-sampled_values = spark.table("int_ems__ocpp_log_sampled_value")
+sampled_values = (
+    spark.table("int_ems__ocpp_log_sampled_value")
+    .filter(F.col("context").cast("string") != "Sample.Clock")  # exclude placeholder zeros
+)
 
 total_sessions = sampled_values.select("driivz__ev_transaction_id").distinct().count()
 
@@ -80,10 +83,31 @@ soc_values.groupBy(F.col("unit").cast("string")).count().orderBy(F.desc("count")
 
 # COMMAND ----------
 
-# Distribution of SoC values (histogram buckets)
-soc_values.select(
-    F.floor(F.col("value").cast("float") / 10).alias("soc_decile")
-).groupBy("soc_decile").count().orderBy("soc_decile").display()
+# Distribution of SoC values (per percentage)
+import matplotlib.pyplot as plt
+
+soc_dist_df = (
+    soc_values.select(
+        F.col("value").cast("int").alias("soc_percent")
+    )
+    .groupBy("soc_percent")
+    .count()
+    .orderBy("soc_percent")
+)
+
+soc_dist_pdf = soc_dist_df.toPandas()
+
+if not soc_dist_pdf.empty:
+    plt.figure(figsize=(10, 5))
+    plt.bar(soc_dist_pdf["soc_percent"], soc_dist_pdf["count"], width=0.8, color="skyblue")
+    plt.xlabel("SoC (%)")
+    plt.ylabel("Count")
+    plt.title("Distribution of SoC Values")
+    plt.grid(axis="y", alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+else:
+    print("No SoC values to plot.")
 
 # COMMAND ----------
 
