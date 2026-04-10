@@ -17,6 +17,7 @@ from pyspark.sql.types import (
     ArrayType,
     FloatType,
     IntegerType,
+    LongType,
     StringType,
     StructField,
     StructType,
@@ -73,7 +74,7 @@ def filter_session(soc, power, min_points=5, max_gap_pct=0.20):
 # COMMAND ----------
 
 output_schema = StructType([
-    StructField("session_id", StringType(), False),
+    StructField("session_id", LongType(), False),
     StructField("make", StringType(), True),
     StructField("model", StringType(), True),
     StructField("evse_max_power_kw", FloatType(), True),
