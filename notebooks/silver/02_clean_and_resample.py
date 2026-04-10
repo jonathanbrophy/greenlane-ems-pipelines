@@ -20,10 +20,8 @@ from pyspark.sql import functions as F
 
 # COMMAND ----------
 
-SOURCE_CATALOG = "prod"
-SOURCE_SCHEMA = "public"
-spark.sql(f"USE CATALOG {SOURCE_CATALOG}")
-spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
+TARGET_CATALOG = "jonathan_play"
+TARGET_SCHEMA = "default"
 from pyspark.sql.types import (
     ArrayType,
     FloatType,
@@ -39,7 +37,7 @@ from pyspark.sql.types import (
 
 # COMMAND ----------
 
-timeseries = spark.table("silver.session_timeseries")
+timeseries = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_timeseries")
 
 # COMMAND ----------
 
@@ -127,12 +125,12 @@ curves = (
     .format("delta")
     .mode("overwrite")
     .option("overwriteSchema", "true")
-    .saveAsTable("silver.session_soc_curves")
+    .saveAsTable(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_soc_curves")
 )
 
 # COMMAND ----------
 
-result = spark.table("silver.session_soc_curves")
+result = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_soc_curves")
 total = result.count()
 good = result.filter(F.col("session_quality_flag") == "good").count()
 print(f"Total sessions: {total:,}")

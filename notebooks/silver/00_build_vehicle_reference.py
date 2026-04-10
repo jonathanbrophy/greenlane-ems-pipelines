@@ -28,8 +28,8 @@ from pyspark.sql import functions as F
 
 FEDERATED_CATALOG = "fc_postgres_prod_customer"
 FEDERATED_SCHEMA = "customer"
-TARGET_CATALOG = "prod"
-TARGET_SCHEMA = "public"
+TARGET_CATALOG = "jonathan_play"
+TARGET_SCHEMA = "default"
 
 # COMMAND ----------
 
@@ -91,18 +91,15 @@ vehicle_ref.groupBy("make").count().orderBy(F.desc("count")).display()
 
 # COMMAND ----------
 
-spark.sql(f"USE CATALOG {TARGET_CATALOG}")
-spark.sql(f"USE SCHEMA {TARGET_SCHEMA}")
-
 (
     vehicle_ref
     .write
     .format("delta")
     .mode("overwrite")
     .option("overwriteSchema", "true")
-    .saveAsTable("silver_vehicle_reference")
+    .saveAsTable(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_vehicle_reference")
 )
 
 # COMMAND ----------
 
-print(f"Wrote {spark.table('silver_vehicle_reference').count():,} rows to {TARGET_CATALOG}.{TARGET_SCHEMA}.silver_vehicle_reference")
+print(f"Wrote {spark.table(f'{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_vehicle_reference').count():,} rows to {TARGET_CATALOG}.{TARGET_SCHEMA}.silver_vehicle_reference")

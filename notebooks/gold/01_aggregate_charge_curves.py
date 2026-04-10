@@ -28,10 +28,8 @@ from pyspark.sql.types import (
 
 # COMMAND ----------
 
-SOURCE_CATALOG = "prod"
-SOURCE_SCHEMA = "public"
-spark.sql(f"USE CATALOG {SOURCE_CATALOG}")
-spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
+TARGET_CATALOG = "jonathan_play"
+TARGET_SCHEMA = "default"
 
 # COMMAND ----------
 
@@ -39,7 +37,7 @@ spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
 
 # COMMAND ----------
 
-curves = spark.table("silver.session_soc_curves")
+curves = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_soc_curves")
 
 # Filter to good-quality sessions only
 good_curves = curves.filter(F.col("session_quality_flag") == "good")
@@ -150,10 +148,10 @@ aggregated = (
     .format("delta")
     .mode("overwrite")
     .option("overwriteSchema", "true")
-    .saveAsTable("gold.charge_curves_by_vehicle")
+    .saveAsTable(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curves_by_vehicle")
 )
 
 # COMMAND ----------
 
-result = spark.table("gold.charge_curves_by_vehicle")
+result = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curves_by_vehicle")
 result.select("make", "model", "evse_power_tier", "n_sessions", "max_observed_power_kw").display()

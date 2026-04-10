@@ -22,8 +22,8 @@ from pyspark.sql import Window
 
 SOURCE_CATALOG = "prod"
 SOURCE_SCHEMA = "public"
-spark.sql(f"USE CATALOG {SOURCE_CATALOG}")
-spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
+TARGET_CATALOG = "jonathan_play"
+TARGET_SCHEMA = "default"
 
 # COMMAND ----------
 
@@ -31,8 +31,8 @@ spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
 
 # COMMAND ----------
 
-sampled_values = spark.table("int_ems__ocpp_log_sampled_value")
-ev_sessions = spark.table("int_ev_session")
+sampled_values = spark.table(f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.int_ems__ocpp_log_sampled_value")
+ev_sessions = spark.table(f"{SOURCE_CATALOG}.{SOURCE_SCHEMA}.int_ev_session")
 
 # COMMAND ----------
 
@@ -107,7 +107,7 @@ session_info = ev_sessions.select(
 )
 
 # Vehicle reference table built by 00_build_vehicle_reference.py
-vehicle_ref = spark.table("silver_vehicle_reference").select(
+vehicle_ref = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_vehicle_reference").select(
     F.col("vehicle_id"),
     F.col("make"),
     F.col("model"),
@@ -159,9 +159,9 @@ result = timeseries.select(
     .format("delta")
     .mode("overwrite")
     .option("overwriteSchema", "true")
-    .saveAsTable("silver.session_timeseries")
+    .saveAsTable(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_timeseries")
 )
 
 # COMMAND ----------
 
-print(f"Wrote {spark.table('silver.session_timeseries').count():,} rows to silver.session_timeseries")
+print(f"Wrote {spark.table(f'{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_timeseries').count():,} rows to {TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_timeseries")

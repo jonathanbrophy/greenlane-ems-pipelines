@@ -32,10 +32,8 @@ from pyspark.sql.types import (
 
 # COMMAND ----------
 
-SOURCE_CATALOG = "prod"
-SOURCE_SCHEMA = "public"
-spark.sql(f"USE CATALOG {SOURCE_CATALOG}")
-spark.sql(f"USE SCHEMA {SOURCE_SCHEMA}")
+TARGET_CATALOG = "jonathan_play"
+TARGET_SCHEMA = "default"
 
 # Number of PWL segments — tunable by controls team
 # Fewer = simpler LP constraints, more = better fidelity
@@ -47,7 +45,7 @@ N_SEGMENTS = 5
 
 # COMMAND ----------
 
-curves = spark.table("gold.charge_curves_by_vehicle")
+curves = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curves_by_vehicle")
 
 # COMMAND ----------
 
@@ -137,7 +135,7 @@ pwl_results = (
     .format("delta")
     .mode("overwrite")
     .option("overwriteSchema", "true")
-    .saveAsTable("gold.charge_curve_pwl")
+    .saveAsTable(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curve_pwl")
 )
 
 # COMMAND ----------
@@ -146,7 +144,7 @@ pwl_results = (
 
 # COMMAND ----------
 
-result = spark.table("gold.charge_curve_pwl")
+result = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curve_pwl")
 result.select("make", "model", "evse_power_tier", "n_segments", "fit_rmse").display()
 
 # COMMAND ----------
@@ -158,7 +156,7 @@ result.select("make", "model", "evse_power_tier", "n_segments", "fit_rmse").disp
 import matplotlib.pyplot as plt
 
 # Pick the first row for visualization
-sample = spark.table("gold.charge_curves_by_vehicle").limit(1).collect()
+sample = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curves_by_vehicle").limit(1).collect()
 pwl_sample = result.limit(1).collect()
 
 if sample and pwl_sample:
