@@ -13,6 +13,14 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install -e /Workspace/Repos/jonathan.brophy@greenlane.com/greenlane-ems-pipelines
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
+
+# COMMAND ----------
+
 import numpy as np
 import pandas as pd
 from pyspark.sql import functions as F
