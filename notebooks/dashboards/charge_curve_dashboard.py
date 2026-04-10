@@ -43,6 +43,12 @@ vehicle_labels = [
     f"{r['make']} {r['model']} ({r['evse_power_tier']})" for r in vehicles
 ]
 
+if not vehicle_labels:
+    raise RuntimeError(
+        "No data in gold_charge_curves_by_vehicle. "
+        "Run the pipeline first: silver/02 -> gold/01 -> (optional) gold/02"
+    )
+
 dbutils.widgets.dropdown("vehicle", vehicle_labels[0], vehicle_labels, "Select Vehicle")
 
 # COMMAND ----------
