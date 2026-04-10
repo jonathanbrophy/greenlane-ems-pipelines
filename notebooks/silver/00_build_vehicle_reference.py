@@ -29,7 +29,7 @@ from pyspark.sql import functions as F
 FEDERATED_CATALOG = "fc_postgres_prod_customer"
 FEDERATED_SCHEMA = "customer"
 TARGET_CATALOG = "jonathan_play"
-TARGET_SCHEMA = "default"
+TARGET_SCHEMA = "vehicle_charge_curves"
 
 # COMMAND ----------
 

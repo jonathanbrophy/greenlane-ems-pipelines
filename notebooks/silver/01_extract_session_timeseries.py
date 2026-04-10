@@ -23,7 +23,7 @@ from pyspark.sql import Window
 SOURCE_CATALOG = "prod"
 SOURCE_SCHEMA = "public"
 TARGET_CATALOG = "jonathan_play"
-TARGET_SCHEMA = "default"
+TARGET_SCHEMA = "vehicle_charge_curves"
 
 # COMMAND ----------
 

@@ -21,7 +21,7 @@ from pyspark.sql import functions as F
 # COMMAND ----------
 
 TARGET_CATALOG = "jonathan_play"
-TARGET_SCHEMA = "default"
+TARGET_SCHEMA = "vehicle_charge_curves"
 from pyspark.sql.types import (
     ArrayType,
     FloatType,

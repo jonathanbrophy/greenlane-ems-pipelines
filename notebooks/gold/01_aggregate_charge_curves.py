@@ -29,7 +29,7 @@ from pyspark.sql.types import (
 # COMMAND ----------
 
 TARGET_CATALOG = "jonathan_play"
-TARGET_SCHEMA = "default"
+TARGET_SCHEMA = "vehicle_charge_curves"
 
 # COMMAND ----------
 

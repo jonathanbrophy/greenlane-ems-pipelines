@@ -12,15 +12,21 @@ SOURCE_SAMPLED_VALUE_TABLE = "int_ems__ocpp_log_sampled_value"
 SOURCE_EV_SESSION_TABLE = "int_ev_session"
 SOURCE_VEHICLE_TABLE = "int_customer__vehicle"
 
+# --- Target catalog/schema ---
+
+TARGET_CATALOG = "jonathan_play"
+TARGET_SCHEMA = "vehicle_charge_curves"
+
 # --- Silver layer ---
 
-SILVER_SESSION_TIMESERIES = "silver.session_timeseries"
-SILVER_SESSION_SOC_CURVES = "silver.session_soc_curves"
+SILVER_VEHICLE_REFERENCE = "silver_vehicle_reference"
+SILVER_SESSION_TIMESERIES = "silver_session_timeseries"
+SILVER_SESSION_SOC_CURVES = "silver_session_soc_curves"
 
 # --- Gold layer ---
 
-GOLD_CHARGE_CURVES = "gold.charge_curves_by_vehicle"
-GOLD_CHARGE_CURVE_PWL = "gold.charge_curve_pwl"
+GOLD_CHARGE_CURVES = "gold_charge_curves_by_vehicle"
+GOLD_CHARGE_CURVE_PWL = "gold_charge_curve_pwl"
 
 # --- Measurand constants (OCPP) ---
 
