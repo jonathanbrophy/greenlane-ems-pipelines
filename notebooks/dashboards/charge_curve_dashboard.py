@@ -8,9 +8,9 @@
 
 # COMMAND ----------
 
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import numpy as np
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from pyspark.sql import functions as F
 
 # COMMAND ----------
@@ -113,7 +113,7 @@ else:
 
 # COMMAND ----------
 
-# MAGIC %md ## 4. Charge Curve with P10/P50/P90 Envelope
+# MAGIC %md ## 4. Charge Curve with P10/P50/P90 Envelope and Coverage
 
 # COMMAND ----------
 
@@ -121,6 +121,7 @@ else:
 p10 = curve_row["p10_curve"]
 p50 = curve_row["p50_curve"]
 p90 = curve_row["p90_curve"]
+coverage = curve_row["coverage_count"]
 
 soc_p10 = [pt["soc"] * 100 for pt in p10]
 pow_p10 = [pt["power_kw"] for pt in p10]
@@ -128,71 +129,140 @@ soc_p50 = [pt["soc"] * 100 for pt in p50]
 pow_p50 = [pt["power_kw"] for pt in p50]
 soc_p90 = [pt["soc"] * 100 for pt in p90]
 pow_p90 = [pt["power_kw"] for pt in p90]
+soc_cov = [pt["soc"] * 100 for pt in coverage]
+n_readings = [pt["n_readings"] for pt in coverage]
 
-fig, ax = plt.subplots(figsize=(14, 6))
-
-# P10-P90 envelope
-ax.fill_between(
-    soc_p10, pow_p10, pow_p90,
-    alpha=0.2, color="steelblue", label="P10–P90 envelope",
+# Build combined figure: charge curve on top, coverage bar chart below
+fig = make_subplots(
+    rows=2, cols=1,
+    shared_xaxes=True,
+    vertical_spacing=0.08,
+    row_heights=[0.75, 0.25],
+    subplot_titles=[
+        f"Charge Curve: {sel_make} {sel_model} -- {sel_tier}",
+        "Data Coverage (raw OCPP readings per 1% SoC bin)",
+    ],
 )
 
-# P50 median
-ax.plot(soc_p50, pow_p50, color="steelblue", linewidth=2.5, label="P50 (median)")
+# --- Top chart: Charge curve ---
 
-# P10 and P90 bounds
-ax.plot(soc_p10, pow_p10, color="steelblue", linewidth=1, linestyle=":", alpha=0.7, label="P10 / P90")
-ax.plot(soc_p90, pow_p90, color="steelblue", linewidth=1, linestyle=":", alpha=0.7)
+# P10-P90 envelope (filled area)
+fig.add_trace(
+    go.Scatter(
+        x=soc_p90, y=pow_p90,
+        mode="lines",
+        line=dict(width=0),
+        showlegend=False,
+        hoverinfo="skip",
+    ),
+    row=1, col=1,
+)
+fig.add_trace(
+    go.Scatter(
+        x=soc_p10, y=pow_p10,
+        mode="lines",
+        line=dict(width=0),
+        fill="tonexty",
+        fillcolor="rgba(70, 130, 180, 0.2)",
+        name="P10-P90 envelope",
+        hoverinfo="skip",
+    ),
+    row=1, col=1,
+)
+
+# P10 line
+fig.add_trace(
+    go.Scatter(
+        x=soc_p10, y=pow_p10,
+        mode="lines",
+        line=dict(color="steelblue", width=1, dash="dot"),
+        name="P10",
+        hovertemplate="SoC: %{x:.0f}%<br>P10: %{y:.1f} kW<extra></extra>",
+    ),
+    row=1, col=1,
+)
+
+# P50 median line
+fig.add_trace(
+    go.Scatter(
+        x=soc_p50, y=pow_p50,
+        mode="lines",
+        line=dict(color="steelblue", width=3),
+        name="P50 (median)",
+        hovertemplate="SoC: %{x:.0f}%<br>P50: %{y:.1f} kW<extra></extra>",
+    ),
+    row=1, col=1,
+)
+
+# P90 line
+fig.add_trace(
+    go.Scatter(
+        x=soc_p90, y=pow_p90,
+        mode="lines",
+        line=dict(color="steelblue", width=1, dash="dot"),
+        name="P90",
+        hovertemplate="SoC: %{x:.0f}%<br>P90: %{y:.1f} kW<extra></extra>",
+    ),
+    row=1, col=1,
+)
 
 # PWL overlay
 if pwl_row:
     bps = pwl_row["pwl_breakpoints"]
     soc_bp = [pt["soc"] * 100 for pt in bps]
     pow_bp = [pt["power_kw"] for pt in bps]
-    ax.plot(
-        soc_bp, pow_bp,
-        color="red", linewidth=2, linestyle="--", marker="o",
-        markersize=6, label=f"PWL fit ({pwl_row['n_segments']} segments, RMSE={pwl_row['fit_rmse']:.1f} kW)",
+    fig.add_trace(
+        go.Scatter(
+            x=soc_bp, y=pow_bp,
+            mode="lines+markers",
+            line=dict(color="red", width=2, dash="dash"),
+            marker=dict(size=8, color="red"),
+            name=f"PWL ({pwl_row['n_segments']} seg, RMSE={pwl_row['fit_rmse']:.1f} kW)",
+            hovertemplate="SoC: %{x:.1f}%<br>PWL: %{y:.1f} kW<extra></extra>",
+        ),
+        row=1, col=1,
     )
 
-ax.set_xlabel("State of Charge (%)", fontsize=12)
-ax.set_ylabel("Power (kW)", fontsize=12)
-ax.set_title(f"Charge Curve: {sel_make} {sel_model} — {sel_tier}", fontsize=14)
-ax.legend(fontsize=10)
-ax.grid(True, alpha=0.3)
-ax.set_xlim(0, 100)
-ax.set_ylim(bottom=0)
-ax.xaxis.set_major_locator(mticker.MultipleLocator(10))
-plt.tight_layout()
-plt.show()
+# --- Bottom chart: Coverage bar chart ---
+
+fig.add_trace(
+    go.Bar(
+        x=soc_cov, y=n_readings,
+        marker_color="steelblue",
+        opacity=0.7,
+        name="Raw readings",
+        hovertemplate="SoC: %{x:.0f}%<br>Readings: %{y:,}<extra></extra>",
+    ),
+    row=2, col=1,
+)
+
+# Layout
+fig.update_layout(
+    height=700,
+    template="plotly_white",
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1,
+    ),
+    margin=dict(t=80),
+)
+
+fig.update_xaxes(
+    title_text="State of Charge (%)", row=2, col=1,
+    range=[0, 100], dtick=10,
+)
+fig.update_xaxes(range=[0, 100], dtick=10, row=1, col=1)
+fig.update_yaxes(title_text="Power (kW)", row=1, col=1, rangemode="tozero")
+fig.update_yaxes(title_text="Readings", row=2, col=1, rangemode="tozero")
+
+fig.show()
 
 # COMMAND ----------
 
-# MAGIC %md ## 5. Data Coverage Density
-# MAGIC
-# MAGIC Number of raw OCPP readings per 1% SoC bin. Higher density = more
-# MAGIC confidence in the percentile estimates.
-
-# COMMAND ----------
-
-coverage = curve_row["coverage_count"]
-soc_cov = [pt["soc"] * 100 for pt in coverage]
-n_readings = [pt["n_readings"] for pt in coverage]
-
-fig, ax = plt.subplots(figsize=(14, 3))
-ax.bar(soc_cov, n_readings, width=0.8, color="steelblue", alpha=0.7)
-ax.set_xlabel("State of Charge (%)", fontsize=12)
-ax.set_ylabel("Raw Readings", fontsize=12)
-ax.set_title(f"Data Coverage: {sel_make} {sel_model} — {sel_tier}", fontsize=14)
-ax.set_xlim(0, 100)
-ax.xaxis.set_major_locator(mticker.MultipleLocator(10))
-ax.grid(True, alpha=0.3, axis="y")
-plt.tight_layout()
-plt.show()
-
-# COMMAND ----------
-
-# MAGIC %md ## 6. Summary Table: All Vehicles
+# MAGIC %md ## 5. Summary Table: All Vehicles
 
 # COMMAND ----------
 
