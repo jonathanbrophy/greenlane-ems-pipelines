@@ -96,7 +96,7 @@ with_soc = wide.filter(F.col("soc_raw").isNotNull())
 
 # COMMAND ----------
 
-# MAGIC %md ## 4. Join to EV Session for Vehicle Info
+# MAGIC %md ## 4. Join to EV Session and Vehicle Reference
 
 # COMMAND ----------
 
@@ -104,15 +104,25 @@ session_info = ev_sessions.select(
     F.col("driivz__ev_transaction_id"),
     F.col("customer__vehicle_id"),
     F.col("vehicle_vin"),
-    # make and model will be available once added to customer DB
-    # F.col("make"),
-    # F.col("model"),
 )
 
-timeseries = with_soc.join(
-    session_info,
-    on="driivz__ev_transaction_id",
-    how="inner",
+# Vehicle reference table built by 00_build_vehicle_reference.py
+vehicle_ref = spark.table("silver_vehicle_reference").select(
+    F.col("vehicle_id"),
+    F.col("make"),
+    F.col("model"),
+    F.col("model_year"),
+    F.col("battery_capacity_kwh"),
+)
+
+timeseries = (
+    with_soc
+    .join(session_info, on="driivz__ev_transaction_id", how="inner")
+    .join(
+        vehicle_ref,
+        F.col("customer__vehicle_id") == vehicle_ref["vehicle_id"],
+        how="left",
+    )
 )
 
 # COMMAND ----------
@@ -124,9 +134,10 @@ timeseries = with_soc.join(
 result = timeseries.select(
     F.col("driivz__ev_transaction_id").alias("session_id"),
     F.col("vehicle_vin"),
-    # Placeholder columns — will be populated when make/model available
-    F.lit(None).cast("string").alias("make"),
-    F.lit(None).cast("string").alias("model"),
+    F.col("make"),
+    F.col("model"),
+    F.col("model_year"),
+    F.col("battery_capacity_kwh"),
     # Normalize SoC: if reported as 0-100, convert to 0-1
     F.when(F.col("soc_raw") > 1.0, F.col("soc_raw") / 100.0)
      .otherwise(F.col("soc_raw"))

@@ -2,7 +2,18 @@
   "name": "ems-pipelines-silver",
   "tasks": [
     {
+      "task_key": "build_vehicle_reference",
+      "notebook_task": {
+        "notebook_path": "notebooks/silver/00_build_vehicle_reference",
+        "source": "GIT"
+      },
+      "job_cluster_key": "ems_cluster"
+    },
+    {
       "task_key": "extract_session_timeseries",
+      "depends_on": [
+        {"task_key": "build_vehicle_reference"}
+      ],
       "notebook_task": {
         "notebook_path": "notebooks/silver/01_extract_session_timeseries",
         "source": "GIT"
