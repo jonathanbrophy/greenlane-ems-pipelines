@@ -1,12 +1,12 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Silver: Clean and Resample onto SoC Grid
+# MAGIC # Silver: Clean and Filter Session Curves
 # MAGIC
-# MAGIC Reads `silver.session_timeseries`, applies quality filters, and resamples
-# MAGIC each session's Power-vs-SoC curve onto a uniform 1% SoC grid.
+# MAGIC Reads `silver_session_timeseries`, applies quality filters, and produces
+# MAGIC one row per session with raw SoC/Power arrays and a quality flag.
 # MAGIC
-# MAGIC Produces: `silver.session_soc_curves` — one row per session with
-# MAGIC `soc_grid` and `power_grid` arrays.
+# MAGIC Produces: `silver_session_soc_curves` — one row per session with
+# MAGIC `soc_values` and `power_values` arrays (raw samples, no resampling).
 
 # COMMAND ----------
 
@@ -42,19 +42,12 @@ timeseries = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_times
 
 # COMMAND ----------
 
-# MAGIC %md ## 2. Define Utility Functions and Pandas UDF
+# MAGIC %md ## 2. Define Quality Filter and Pandas UDF
 # MAGIC
 # MAGIC Functions are defined inline so they're available on worker nodes
 # MAGIC when executed via `applyInPandas`.
 
 # COMMAND ----------
-
-def resample_to_soc_grid(soc, power, grid_points=101):
-    """Resample a session's power curve onto a uniform SoC grid."""
-    soc_grid = np.linspace(soc.min(), soc.max(), grid_points)
-    power_grid = np.interp(soc_grid, soc, power)
-    return soc_grid, power_grid
-
 
 def filter_session(soc, power, min_points=5, max_gap_pct=0.20):
     """Check whether a session has sufficient data quality."""
@@ -80,16 +73,15 @@ output_schema = StructType([
     StructField("evse_max_power_kw", FloatType(), True),
     StructField("soc_start", FloatType(), False),
     StructField("soc_end", FloatType(), False),
-    StructField("soc_grid", ArrayType(FloatType()), False),
-    StructField("power_grid", ArrayType(FloatType()), False),
+    StructField("soc_values", ArrayType(FloatType()), False),
+    StructField("power_values", ArrayType(FloatType()), False),
     StructField("n_raw_points", IntegerType(), False),
     StructField("session_quality_flag", StringType(), False),
 ])
 
 
-def resample_session(pdf: pd.DataFrame) -> pd.DataFrame:
-    """Process a single session's timeseries into a resampled SoC curve."""
-    # Sort by SoC (should be monotonically increasing during charging)
+def clean_session(pdf: pd.DataFrame) -> pd.DataFrame:
+    """Clean a single session: sort, drop nulls, classify quality, store raw arrays."""
     pdf = pdf.sort_values("soc").dropna(subset=["soc", "power_kw"])
 
     soc = pdf["soc"].values
@@ -104,11 +96,9 @@ def resample_session(pdf: pd.DataFrame) -> pd.DataFrame:
     else:
         quality = "good"
 
-    # Only resample sessions with enough data
+    # Drop sessions with fewer than 3 points
     if n_raw < 3:
         return pd.DataFrame()
-
-    soc_grid, power_grid = resample_to_soc_grid(soc, power, grid_points=101)
 
     row = pdf.iloc[0]
     return pd.DataFrame([{
@@ -118,22 +108,22 @@ def resample_session(pdf: pd.DataFrame) -> pd.DataFrame:
         "evse_max_power_kw": row.get("evse_max_power_kw"),
         "soc_start": float(soc.min()),
         "soc_end": float(soc.max()),
-        "soc_grid": soc_grid.tolist(),
-        "power_grid": power_grid.tolist(),
+        "soc_values": soc.tolist(),
+        "power_values": power.tolist(),
         "n_raw_points": n_raw,
         "session_quality_flag": quality,
     }])
 
 # COMMAND ----------
 
-# MAGIC %md ## 3. Apply Resampling
+# MAGIC %md ## 3. Apply Cleaning
 
 # COMMAND ----------
 
 curves = (
     timeseries
     .groupBy("session_id")
-    .applyInPandas(resample_session, schema=output_schema)
+    .applyInPandas(clean_session, schema=output_schema)
 )
 
 # COMMAND ----------
