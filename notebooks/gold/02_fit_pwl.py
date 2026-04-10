@@ -6,14 +6,14 @@
 # MAGIC piecewise linear (PWL) approximations using `pwlf`.
 # MAGIC
 # MAGIC The resulting breakpoints and slopes map directly to MPC LP constraints:
-# MAGIC - `pwl_breakpoints`: SoC thresholds with power limits → P(SoC) <= f(SoC)
+# MAGIC - `pwl_breakpoints`: SoC thresholds with power limits -> P(SoC) <= f(SoC)
 # MAGIC - `pwl_slopes`: dP/dSoC rates for each segment
 # MAGIC
 # MAGIC Produces: `gold.charge_curve_pwl`
 
 # COMMAND ----------
 
-# MAGIC %pip install -e /Workspace/Users/jonathan.brophy@drivegreenlane.com/greenlane-ems-pipelines
+# MAGIC %pip install pwlf
 
 # COMMAND ----------
 
@@ -23,6 +23,7 @@ dbutils.library.restartPython()
 
 import numpy as np
 import pandas as pd
+import pwlf
 from pyspark.sql import functions as F
 from pyspark.sql.types import (
     ArrayType,
@@ -57,7 +58,36 @@ curves = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.gold_charge_curves_by_ve
 
 # COMMAND ----------
 
-# MAGIC %md ## 2. Fit PWL to Each Make/Model
+# MAGIC %md ## 2. Define PWL Fitting Functions and Pandas UDF
+# MAGIC
+# MAGIC Functions are defined inline so they're available on worker nodes
+# MAGIC when executed via `applyInPandas`.
+
+# COMMAND ----------
+
+def fit_pwl(soc_grid, power_values, n_segments=5):
+    """Fit a piecewise linear model to a charge curve."""
+    model = pwlf.PiecewiseLinFit(soc_grid, power_values)
+    model.fit(n_segments)
+    return model
+
+
+def pwl_to_breakpoints(model):
+    """Extract breakpoints as (soc, power_kw) pairs."""
+    soc_breaks = model.fit_breaks
+    power_breaks = model.predict(soc_breaks)
+    return [(float(s), float(p)) for s, p in zip(soc_breaks, power_breaks)]
+
+
+def pwl_to_slopes(model):
+    """Extract slopes (dP/dSoC) for each segment."""
+    return [float(s) for s in model.calc_slopes()]
+
+
+def compute_fit_rmse(model, soc_grid, power_values):
+    """Compute RMSE between the PWL fit and the original curve."""
+    predicted = model.predict(soc_grid)
+    return float(np.sqrt(np.mean((predicted - power_values) ** 2)))
 
 # COMMAND ----------
 
@@ -82,13 +112,6 @@ def fit_pwl_for_group(pdf: pd.DataFrame) -> pd.DataFrame:
     """Fit a PWL approximation to the P50 curve for a single make/model group."""
     from datetime import datetime, timezone
 
-    from ems_pipelines.pwl_utils import (
-        compute_fit_rmse,
-        fit_pwl,
-        pwl_to_breakpoints,
-        pwl_to_slopes,
-    )
-
     row = pdf.iloc[0]
     p50_curve = row["p50_curve"]
 
@@ -104,8 +127,8 @@ def fit_pwl_for_group(pdf: pd.DataFrame) -> pd.DataFrame:
         # If fitting fails (e.g., not enough data), return with NaN RMSE
         print(f"PWL fit failed for {row.get('make')}/{row.get('model')}: {e}")
         breakpoints = [
-            {"soc": float(soc_grid[0]), "power_kw": float(power_values[0])},
-            {"soc": float(soc_grid[-1]), "power_kw": float(power_values[-1])},
+            (float(soc_grid[0]), float(power_values[0])),
+            (float(soc_grid[-1]), float(power_values[-1])),
         ]
         slopes = [0.0]
         rmse = float("nan")

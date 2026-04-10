@@ -10,26 +10,9 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -e /Workspace/Users/jonathan.brophy@drivegreenlane.com/greenlane-ems-pipelines
-
-# COMMAND ----------
-
-dbutils.library.restartPython()
-
-# COMMAND ----------
-
 import numpy as np
 import pandas as pd
 from pyspark.sql import functions as F
-
-# COMMAND ----------
-
-# MAGIC %md ## Configuration
-
-# COMMAND ----------
-
-TARGET_CATALOG = "jonathan_play"
-TARGET_SCHEMA = "vehicle_charge_curves"
 from pyspark.sql.types import (
     ArrayType,
     FloatType,
@@ -41,6 +24,15 @@ from pyspark.sql.types import (
 
 # COMMAND ----------
 
+# MAGIC %md ## Configuration
+
+# COMMAND ----------
+
+TARGET_CATALOG = "jonathan_play"
+TARGET_SCHEMA = "vehicle_charge_curves"
+
+# COMMAND ----------
+
 # MAGIC %md ## 1. Load Session Timeseries
 
 # COMMAND ----------
@@ -49,10 +41,34 @@ timeseries = spark.table(f"{TARGET_CATALOG}.{TARGET_SCHEMA}.silver_session_times
 
 # COMMAND ----------
 
-# MAGIC %md ## 2. Define Pandas UDF for Resampling
+# MAGIC %md ## 2. Define Utility Functions and Pandas UDF
 # MAGIC
-# MAGIC Groups by session_id, applies filtering and resampling using pure Python
-# MAGIC functions from `ems_pipelines.soc_utils`.
+# MAGIC Functions are defined inline so they're available on worker nodes
+# MAGIC when executed via `applyInPandas`.
+
+# COMMAND ----------
+
+def resample_to_soc_grid(soc, power, grid_points=101):
+    """Resample a session's power curve onto a uniform SoC grid."""
+    soc_grid = np.linspace(soc.min(), soc.max(), grid_points)
+    power_grid = np.interp(soc_grid, soc, power)
+    return soc_grid, power_grid
+
+
+def filter_session(soc, power, min_points=5, max_gap_pct=0.20):
+    """Check whether a session has sufficient data quality."""
+    if len(soc) < min_points:
+        return False
+    if len(soc) != len(power):
+        return False
+    soc_range = soc.max() - soc.min()
+    if soc_range <= 0:
+        return False
+    sorted_soc = np.sort(soc)
+    gaps = np.diff(sorted_soc)
+    if len(gaps) > 0 and gaps.max() / soc_range > max_gap_pct:
+        return False
+    return True
 
 # COMMAND ----------
 
@@ -72,8 +88,6 @@ output_schema = StructType([
 
 def resample_session(pdf: pd.DataFrame) -> pd.DataFrame:
     """Process a single session's timeseries into a resampled SoC curve."""
-    from ems_pipelines.soc_utils import filter_session, resample_to_soc_grid
-
     # Sort by SoC (should be monotonically increasing during charging)
     pdf = pdf.sort_values("soc").dropna(subset=["soc", "power_kw"])
 
